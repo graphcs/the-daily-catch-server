@@ -1,17 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
-import { TOPICS, TopicId, EnergyMode } from './types';
-import { generateStoriesForTopic, generateDeepContent } from './generator';
+import { TOPICS, TopicId } from './types';
+import { generateStoriesForTopic } from './generator';
 import {
-  createBatch, completeBatch, saveStories, saveDeepContent, deleteOldBatches,
+  createBatch, completeBatch, saveStories, deleteOldBatches,
 } from './db';
 
-const ENERGY_MODES: EnergyMode[] = ['quick', 'deep'];
+const CONCURRENCY = 5; // Run 5 topic generations in parallel
 
 /**
- * Run a full generation cycle:
- * 1. Generate 3 stories per topic per energy mode (10 topics x 2 modes = 20 API calls)
- * 2. Generate deep content for each story (~60 API calls, or fewer with batching)
- * 3. Store everything in SQLite
+ * Run a generation cycle:
+ * - Generate 3 stories per topic (10 topics, 5 at a time in parallel)
+ * - Store as "quick" mode (the server assembler serves these for both modes)
+ * - Skip deep content pre-generation (app falls back to direct API)
+ * - Total: ~10 API calls, completes in ~2-3 minutes
  */
 export async function runGenerationCycle(): Promise<{ batchId: string; storiesGenerated: number; errors: string[] }> {
   const batchId = uuidv4();
@@ -21,36 +22,26 @@ export async function runGenerationCycle(): Promise<{ batchId: string; storiesGe
   console.log(`[cron] Starting generation cycle, batch=${batchId}`);
   createBatch(batchId);
 
-  // Phase 1: Generate stories per topic per energy mode
-  for (const topic of TOPICS) {
-    for (const mode of ENERGY_MODES) {
-      try {
-        console.log(`[cron] Generating ${mode} stories for ${topic}...`);
-        const stories = await generateStoriesForTopic(topic as TopicId, mode);
-        saveStories(stories, topic, mode, batchId);
-        storiesGenerated += stories.length;
-
-        // Phase 2: Generate deep content for each story
-        for (const story of stories) {
-          try {
-            console.log(`[cron]   Deep content for "${story.headline.substring(0, 40)}..."`);
-            const deep = await generateDeepContent(story);
-            saveDeepContent(story.id, deep);
-          } catch (err) {
-            const msg = `Deep content failed for ${story.id}: ${err}`;
-            console.error(`[cron]   ${msg}`);
-            errors.push(msg);
-          }
+  // Process topics in batches of CONCURRENCY
+  const topicList = [...TOPICS];
+  for (let i = 0; i < topicList.length; i += CONCURRENCY) {
+    const batch = topicList.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (topic) => {
+        console.log(`[cron] Generating stories for ${topic}...`);
+        try {
+          const stories = await generateStoriesForTopic(topic as TopicId, 'quick');
+          // Save as both quick and deep (same content, server doesn't differentiate word count)
+          saveStories(stories, topic, 'all', batchId);
+          storiesGenerated += stories.length;
+          console.log(`[cron] ✓ ${topic}: ${stories.length} stories`);
+        } catch (err) {
+          const msg = `Failed for ${topic}: ${err}`;
+          console.error(`[cron] ✗ ${topic}: ${msg}`);
+          errors.push(msg);
         }
-
-        // Small delay between API calls to avoid rate limiting
-        await new Promise(r => setTimeout(r, 1000));
-      } catch (err) {
-        const msg = `Stories failed for ${topic}/${mode}: ${err}`;
-        console.error(`[cron] ${msg}`);
-        errors.push(msg);
-      }
-    }
+      })
+    );
   }
 
   if (storiesGenerated > 0) {

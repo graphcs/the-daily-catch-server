@@ -37,7 +37,7 @@ export function assembleBrief(topics: TopicId[], energyMode: EnergyMode): Story[
   // Fetch stories per topic
   const topicStories = new Map<TopicId, Story[]>();
   for (const [topic, count] of needPerTopic) {
-    const stories = getStoriesForTopic(topic, energyMode, batchId, count);
+    const stories = getStoriesForTopic(topic, 'all', batchId, count);
     if (stories.length === 0) return null; // No stories cached for this topic
     topicStories.set(topic, stories);
   }
