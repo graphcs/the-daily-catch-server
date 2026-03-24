@@ -80,12 +80,11 @@ export async function generateStoriesForTopic(
     year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  const systemPrompt = `You are a news curator who prioritizes understanding over volume. \
-For every story, start with "why would a busy person care about this?" and work backward to what happened.
+  const systemPrompt = `You are a news curator who prioritizes understanding over volume. Your guiding question for every story: "Why would a busy person care about this?" Work backward from that to what happened.
 
-SELECTION FILTERS — apply all three before including a story:
-1. Scale of Impact: Does this change how people live, work, spend, or plan?
-2. Dinner Table Test: Would someone who doesn't follow the news find this interesting?
+SELECTION HIERARCHY — apply in order:
+1. Dinner Table Test (mandatory): "Is this something people are actually talking about or would want to discuss?" If a story dominates the news cycle, it MUST appear. An informed person who reads your briefing should never think "how did they miss that?"
+2. Scale of Impact: Does this change how people live, work, spend, or plan?
 3. Context Gap: Is this something people saw a headline about but couldn't explain?
 
 EDITORIAL RULES:
@@ -94,34 +93,44 @@ EDITORIAL RULES:
 - Do not frame stories as two-sided conflicts when they are more nuanced.
 - Let facts and context do the work.
 - When uncertain, say so: "it's unclear whether," "analysts are divided on."
+- Political stories must read as neutral to readers across the spectrum. A conservative and a liberal should both feel the summary is fair.
 
 Keep it balanced and accessible.`;
 
-  const userPrompt = `Today is ${today}. Give me the 3 most important stories from the last 24-48 hours about ${newsPrompt}.
+  const userPrompt = `Today is ${today}. Give me the 3 most important stories from the last 24 hours about ${newsPrompt}.
 
 ALL 3 STORIES MUST BE CATEGORY: "${category}"
 
 STORY #1 — LEAD STORY:
-Story #1 should be the BIGGEST, most impactful headline in ${newsPrompt}. Apply the Dinner Table Test: pick the story that people are most likely talking about right now.
+Story #1 should be the BIGGEST, most impactful headline in ${newsPrompt}. Apply the Dinner Table Test at maximum strength: pick the story that people are most likely talking about right now. If someone read only this story, they'd still feel plugged into the news.
 
-WHAT "GENUINELY FITS" MEANS — apply this test: "Would this story appear in a dedicated [CATEGORY] section of a major newspaper?" If no, pick a different story.
-- TECH = technology companies, products, AI, software, hardware, chips, apps
-- BUSINESS = companies, earnings, markets, startups, M&A, retail
+CATEGORY FIT TEST: "Would this story appear in a dedicated [CATEGORY] section of a major newspaper?" If no, pick a different story.
+- TECH = technology companies, products, AI, software, hardware, chips, apps, cybersecurity
+- BUSINESS = companies, earnings, markets, startups, M&A, retail, labor
 - MONEY = personal finance, investing, interest rates, crypto, economic indicators
-- WORLD = international relations, geopolitics, foreign affairs
-- POLITICS = domestic policy, elections, legislation, government
-- HEALTH = medical research, public health, wellness
-- CLIMATE = environment, energy, sustainability
-- CULTURE = entertainment, arts, media, social trends
-- SPORTS = athletic competitions, teams, players, tournaments
-- HOUSING = real estate, mortgages, urban development
+- WORLD = international relations, geopolitics, foreign affairs, conflicts
+- POLITICS = domestic policy, elections, legislation, government actions
+- HEALTH = medical research, public health, FDA, wellness
+- CLIMATE = environment, energy, sustainability, extreme weather
+- CULTURE = entertainment, arts, media, social trends, viral moments
+- SPORTS = athletic competitions, teams, players, tournaments, records
+- HOUSING = real estate, mortgages, urban development, housing data
 
-CRITICAL — STORIES MUST BE INDEPENDENT:
-- Each of the 3 stories must be about a completely different event, topic, and subject.
-- NO OVERLAP: If one story is about a war or conflict, the other stories MUST NOT mention that war.
-- A story about Trump, a president, military action, war, Pentagon, sanctions is a POLITICS or WORLD story. It is NEVER a TECH, BUSINESS, MONEY, HEALTH, SPORTS, CULTURE, or HOUSING story.
+ROOT CAUSE RULE:
+When a story's root cause is a war, conflict, or political action, it belongs in WORLD or POLITICS — even if its effects touch other sectors. "Oil prices surge because of war" = WORLD. The root cause determines the category.
+Exception: if a secondary effect has become its own standalone story with independent developments, it can be categorized independently.
 
-RECENCY: Only include stories that broke or had major developments within the last 48 hours.
+STORY DISTINCTNESS:
+Each story must teach the reader something they would not learn from the other two. Two stories CAN involve the same broader situation IF they cover genuinely independent developments with different stakeholders, data, and implications.
+
+VIOLENCE / CRIME RULE:
+Stories about shootings, attacks, hate crimes, terrorism, or violent incidents belong in POLITICS or WORLD only — never TECH, SPORTS, CULTURE, HEALTH, CLIMATE, MONEY, BUSINESS, or HOUSING.
+
+RECENCY CHECK:
+Only include stories that broke or had a major NEW development within the last 24 hours. Before including any story, ask: "Did something new happen with this in the last 24 hours, or am I recycling an older story?" If you are not confident it's fresh, do not include it.
+
+SO-WHAT GATEKEEPER:
+If you cannot write a compelling "soWhat" explaining how this story affects the reader's life, money, career, or understanding of the world — the story does not belong. Replace it with one where the stakes are clear.
 
 SOURCE REQUIREMENTS:
 - Each story must be informed by at least 2-3 cross-referenced sources.
@@ -185,8 +194,13 @@ Return ONLY a JSON array of 3 objects. No markdown, no code fences, just the raw
  * Generate deep content for a single story.
  */
 export async function generateDeepContent(story: Story): Promise<DeepContent> {
-  const systemPrompt = `You are a news analyst providing deep-dive content for a specific story. \
-Be factual, balanced, and thorough.`;
+  const systemPrompt = `You are a news analyst providing deep-dive content for a specific story. Your job is to make the reader feel like they just had a 10-minute conversation with a knowledgeable friend who follows this topic closely.
+
+Be factual, balanced, and thorough. Prioritize:
+- Context that makes the reader smarter, not just more informed
+- Connections to things the reader already knows about
+- Explaining WHY something matters, not just WHAT happened
+- Plain language over jargon. When jargon is unavoidable, explain it.`;
 
   const sourcesHint = story.sources.join(', ');
 
@@ -199,9 +213,9 @@ Sources consulted: ${sourcesHint}
 
 Provide deep-dive supplementary content as a single JSON object with these fields:
 
-- "timeline": array of 3-5 objects with {"date": "Mar 2024", "description": "What happened"} — chronological events leading to this story
+- "timeline": array of 3-5 objects with {"date": "Mar 2024", "description": "What happened"} — chronological events leading to this story. Focus on the moments that explain WHY this is happening now.
 - "fullCoverage": array of EXACTLY 3 objects with {"name": "Reuters", "angle": "Market reaction — shares rose 4%...", "stance": "Neutral", "headline": "Article headline from this source", "summary": "4-6 paragraph summary of this outlet's reporting. Cover the main event, key quotes, data points, and context. Write in neutral journalistic tone. Separate paragraphs with double newlines.", "date": "March 4, 2026", "sourceURL": "https://..."} — different outlets' perspectives. Stance must be one of: "Neutral", "Analytical", "Critical", "Positive". sourceURL must be a real, valid URL to the actual article. The "name" should use real outlet names like ${sourcesHint}.
-- "whatToWatch": 1-2 sentences of forward-looking analysis — what could happen next
+- "whatToWatch": 1-2 sentences of forward-looking analysis — what could happen next, and what signals to watch for. Be specific: name dates, deadlines, decisions, or data releases.
 - "linkedTerms": array of 2-3 objects with {"term": "jargon word", "explanation": "plain English explanation"} — terms the average reader would NOT know. Pick terms a reader would actually Google.
 
 Return ONLY a single JSON object (NOT an array). No markdown, no code fences, just the raw JSON object.`;

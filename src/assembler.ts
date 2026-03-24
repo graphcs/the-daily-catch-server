@@ -3,10 +3,10 @@ import { getLatestCompletedBatchId, getStoriesForTopic } from './db';
 
 /**
  * Assemble a 5-story brief from pre-generated per-topic caches.
- * Slot allocation matches the iOS app:
- *   1 topic:  all 5 from topic #1
- *   2 topics: #1 gets 3, #2 gets 2 (interleaved)
- *   3 topics: #1 gets 3, #2 gets 1, #3 gets 1 (interleaved)
+ * Slot allocation:
+ *   1 topic:  all 5 from topic #1 (server caches 3; slots 4-5 may be empty)
+ *   2 topics: Lead(T1), T2, T1-second, T2-second, Wildcard(T1-third)
+ *   3 topics: Lead(T1), T2, T3, T1-second, Wildcard(T2-second)
  */
 export function assembleBrief(topics: TopicId[], energyMode: EnergyMode): Story[] | null {
   const batchId = getLatestCompletedBatchId();
@@ -21,10 +21,12 @@ export function assembleBrief(topics: TopicId[], energyMode: EnergyMode): Story[
       slotTopics = [topics[0], topics[0], topics[0], topics[0], topics[0]];
       break;
     case 2:
+      // Lead(T1), T2, T1-second, T2-second, Wildcard(T1-third)
       slotTopics = [topics[0], topics[1], topics[0], topics[1], topics[0]];
       break;
     default:
-      slotTopics = [topics[0], topics[1], topics[0], topics[2], topics[0]];
+      // Lead(T1), T2, T3, T1-second, Wildcard(T2-second)
+      slotTopics = [topics[0], topics[1], topics[2], topics[0], topics[1]];
       break;
   }
 
