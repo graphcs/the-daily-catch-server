@@ -105,10 +105,10 @@ STORY #1 — LEAD STORY:
 Story #1 should be the BIGGEST, most impactful headline in ${newsPrompt}. Apply the Dinner Table Test at maximum strength: pick the story that people are most likely talking about right now. If someone read only this story, they'd still feel plugged into the news.
 
 CATEGORY FIT TEST: "Would this story appear in a dedicated [CATEGORY] section of a major newspaper?" If no, pick a different story.
-- TECH = technology companies, products, AI, software, hardware, chips, apps, cybersecurity
+- TECH = technology companies, products, AI, software, hardware, chips, apps, cybersecurity. Note: each TECH story should cover a different tech sub-sector (AI, cybersecurity, social media, hardware, etc.) — not multiple angles on the same sub-sector.
 - BUSINESS = companies, earnings, markets, startups, M&A, retail, labor
 - MONEY = personal finance, investing, interest rates, crypto, economic indicators
-- WORLD = international relations, geopolitics, foreign affairs, conflicts
+- WORLD = international relations, geopolitics, foreign affairs, conflicts, humanitarian crises, diplomacy, territorial disputes, international organizations. A story is WORLD only if its core subject is the relationship BETWEEN nations or a crisis affecting a region — not when two countries happen to be involved in a tech, business, or trade story. "US and China compete in AI" is TECH. "US imposes export controls on China citing national security" is WORLD.
 - POLITICS = domestic policy, elections, legislation, government actions
 - HEALTH = medical research, public health, FDA, wellness
 - CLIMATE = environment, energy, sustainability, extreme weather
@@ -120,8 +120,13 @@ ROOT CAUSE RULE:
 When a story's root cause is a war, conflict, or political action, it belongs in WORLD or POLITICS — even if its effects touch other sectors. "Oil prices surge because of war" = WORLD. The root cause determines the category.
 Exception: if a secondary effect has become its own standalone story with independent developments, it can be categorized independently.
 
+THEMATIC DIVERSITY:
+The 3 stories together should give the reader a broad picture of what's happening in this category — not a deep dive into one subtopic.
+- Each story must be about a different INDUSTRY or SUBJECT AREA. If Story #1 is about AI chips, the other stories should cover something completely different — a cybersecurity breach, a social media regulation, a product launch in a different sector. Multiple stories about AI/semiconductors from different companies is NOT diverse.
+- SELF-CHECK: Before finalizing, scan all 3 headlines together. If a reader could summarize them as "it's all about [one topic]," you lack diversity. Replace the weakest story with something from a genuinely different domain within this category.
+
 STORY DISTINCTNESS:
-Each story must teach the reader something they would not learn from the other two. Two stories CAN involve the same broader situation IF they cover genuinely independent developments with different stakeholders, data, and implications.
+Each story must teach the reader something they would not learn from the other two. Two stories CAN involve the same broader situation IF they cover genuinely independent developments with different stakeholders, data, and implications. But repackaging the same event from a different angle is not a distinct story.
 
 VIOLENCE / CRIME RULE:
 Stories about shootings, attacks, hate crimes, terrorism, or violent incidents belong in POLITICS or WORLD only — never TECH, SPORTS, CULTURE, HEALTH, CLIMATE, MONEY, BUSINESS, or HOUSING.
