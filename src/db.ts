@@ -46,7 +46,23 @@ function migrate() {
       content_json TEXT NOT NULL,
       generated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS test_codes (
+      code TEXT PRIMARY KEY,
+      days_granted INTEGER NOT NULL,
+      max_uses INTEGER NOT NULL DEFAULT 0,
+      current_uses INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1
+    );
   `);
+
+  // Seed default test code if not exists
+  const existing = d.prepare('SELECT code FROM test_codes WHERE code = ?').get('DEEPCATCH30');
+  if (!existing) {
+    d.prepare(
+      'INSERT INTO test_codes (code, days_granted, max_uses, current_uses, active) VALUES (?, ?, ?, ?, ?)'
+    ).run('DEEPCATCH30', 30, 0, 0, 1);
+  }
 }
 
 // --- Batch operations ---
@@ -137,4 +153,49 @@ export function deleteOldBatches(keepCount: number = 3): void {
   getDb().prepare(
     'DELETE FROM deep_content WHERE story_id NOT IN (SELECT id FROM stories)'
   ).run();
+}
+
+// --- Test code operations ---
+
+export interface TestCode {
+  code: string;
+  days_granted: number;
+  max_uses: number;
+  current_uses: number;
+  active: number;
+}
+
+export function redeemTestCode(code: string): { valid: boolean; daysGranted?: number; expiresAt?: string; error?: string } {
+  const row = getDb().prepare(
+    'SELECT * FROM test_codes WHERE code = ?'
+  ).get(code) as TestCode | undefined;
+
+  if (!row) return { valid: false, error: 'Invalid code' };
+  if (!row.active) return { valid: false, error: 'This code is no longer active' };
+  if (row.max_uses > 0 && row.current_uses >= row.max_uses) {
+    return { valid: false, error: 'This code has reached its usage limit' };
+  }
+
+  // Increment usage count
+  getDb().prepare('UPDATE test_codes SET current_uses = current_uses + 1 WHERE code = ?').run(code);
+
+  // Calculate expiry date
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + row.days_granted);
+
+  return {
+    valid: true,
+    daysGranted: row.days_granted,
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+export function listTestCodes(): TestCode[] {
+  return getDb().prepare('SELECT * FROM test_codes ORDER BY code').all() as TestCode[];
+}
+
+export function createTestCode(code: string, daysGranted: number, maxUses: number): void {
+  getDb().prepare(
+    'INSERT OR REPLACE INTO test_codes (code, days_granted, max_uses, current_uses, active) VALUES (?, ?, ?, 0, 1)'
+  ).run(code, daysGranted, maxUses);
 }

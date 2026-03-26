@@ -5,7 +5,7 @@ import cron from 'node-cron';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { TopicId, TOPICS, EnergyMode } from './types';
-import { getDb, getStoryById, getDeepContent, getLatestCompletedBatchId } from './db';
+import { getDb, getStoryById, getDeepContent, getLatestCompletedBatchId, redeemTestCode, listTestCodes, createTestCode } from './db';
 import { assembleBrief } from './assembler';
 import { runGenerationCycle, runDeepContentBatch, runAllDeepContent, DEEP_BATCH_1, DEEP_BATCH_2 } from './cron';
 
@@ -300,6 +300,81 @@ app.post('/api/admin/refresh', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: `Generation failed: ${err}` });
   }
+});
+
+/**
+ * @openapi
+ * /api/redeem-code:
+ *   post:
+ *     summary: Redeem a beta test code
+ *     description: Validates a test code and returns an expiry date for temporary premium access.
+ *     tags: [Test Codes]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *             required: [code]
+ *     responses:
+ *       200:
+ *         description: Code validation result
+ */
+app.post('/api/redeem-code', (req, res) => {
+  const { code } = req.body;
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ valid: false, error: 'Missing code' });
+    return;
+  }
+  const result = redeemTestCode(code.toUpperCase().trim());
+  res.json(result);
+});
+
+/**
+ * @openapi
+ * /api/admin/codes:
+ *   get:
+ *     summary: List all test codes
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: List of test codes
+ *   post:
+ *     summary: Create a test code
+ *     tags: [Admin]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *               daysGranted:
+ *                 type: number
+ *               maxUses:
+ *                 type: number
+ *                 description: "0 = unlimited"
+ *     responses:
+ *       200:
+ *         description: Code created
+ */
+app.get('/api/admin/codes', (_req, res) => {
+  res.json(listTestCodes());
+});
+
+app.post('/api/admin/codes', (req, res) => {
+  const { code, daysGranted, maxUses } = req.body;
+  if (!code || !daysGranted) {
+    res.status(400).json({ error: 'Missing code or daysGranted' });
+    return;
+  }
+  createTestCode(code.toUpperCase().trim(), daysGranted, maxUses ?? 0);
+  res.json({ created: true, code: code.toUpperCase().trim() });
 });
 
 /**
