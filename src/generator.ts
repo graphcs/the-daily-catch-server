@@ -66,7 +66,7 @@ async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise
 }
 
 /**
- * Generate 3 stories for a single topic in a given energy mode.
+ * Generate 5 stories for a single topic in a given energy mode.
  */
 export async function generateStoriesForTopic(
   topic: TopicId,
@@ -97,9 +97,9 @@ EDITORIAL RULES:
 
 Keep it balanced and accessible.`;
 
-  const userPrompt = `Today is ${today}. Give me the 3 most important stories from the last 24-48 hours about ${newsPrompt}.
+  const userPrompt = `Today is ${today}. Give me the 5 most important stories from the last 24-48 hours about ${newsPrompt}.
 
-ALL 3 STORIES MUST BE CATEGORY: "${category}"
+ALL 5 STORIES MUST BE CATEGORY: "${category}"
 
 STORY #1 — LEAD STORY:
 Story #1 should be the BIGGEST, most impactful headline in ${newsPrompt}. Apply the Dinner Table Test: pick the story that people are most likely talking about right now.
@@ -117,7 +117,7 @@ WHAT "GENUINELY FITS" MEANS — apply this test: "Would this story appear in a d
 - HOUSING = real estate, mortgages, urban development
 
 CRITICAL — STORIES MUST BE INDEPENDENT:
-- Each of the 3 stories must be about a completely different event, topic, and subject.
+- Each of the 5 stories must be about a completely different event, topic, and subject.
 - NO OVERLAP: If one story is about a war or conflict, the other stories MUST NOT mention that war.
 - A story about Trump, a president, military action, war, Pentagon, sanctions is a POLITICS or WORLD story. It is NEVER a TECH, BUSINESS, MONEY, HEALTH, SPORTS, CULTURE, or HOUSING story.
 
@@ -131,7 +131,7 @@ CATEGORY VALUES — use EXACTLY these strings, no variations:
 ${ALL_CATEGORIES}
 
 For each story, provide a JSON object with these exact fields:
-- "category": "${category}" (MUST be exactly this for all 3 stories)
+- "category": "${category}" (MUST be exactly this for all 5 stories)
 - "headline": clear, compelling headline (max 12 words)
 - "hook": One sentence. What happened, in plain language. Roughly ${wordCount} words.
 - "context": Two to three sentences. Why this is happening now. Roughly ${wordCount} words.
@@ -145,7 +145,7 @@ For each story, provide a JSON object with these exact fields:
 - "readTime": estimated read time (e.g. "2 min read")
 - "timestamp": when the story broke (e.g. "2h ago", "Today")
 
-Return ONLY a JSON array of 3 objects. No markdown, no code fences, just the raw JSON array.`;
+Return ONLY a JSON array of 5 objects. No markdown, no code fences, just the raw JSON array.`;
 
   const raw = await callOpenRouter(systemPrompt, userPrompt);
   const parsed = JSON.parse(raw) as Record<string, unknown>[];
