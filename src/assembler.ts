@@ -1,19 +1,19 @@
-import { Story, TopicId, EnergyMode, TOPICS } from './types';
+import { Story, TopicId, EnergyMode } from './types';
 import { getLatestCompletedBatchId, getStoriesForTopic, getDeepContent } from './db';
 
 /**
  * Assemble a 5-story brief from pre-generated per-topic caches.
- * Slot allocation matches the iOS app (feat/improve-news-algo):
- *   1 topic:  all 5 from topic #1
- *   2 topics: T1, T2, T1, T2, WILDCARD
- *   3 topics: T1, T2, T3, T1, WILDCARD
- * WILDCARD = a story from any topic NOT already used.
+ * Slot allocation:
+ *   1 topic:  T1, T1, T1, T1, T1
+ *   2 topics: T1, T2, T1, T2, (T1 or T2)
+ *   3 topics: T1, T2, T3, T1, (T1 or T2 or T3)
+ * The 5th slot always comes from the user's own topics.
  */
 export function assembleBrief(topics: TopicId[], energyMode: EnergyMode, includeDeep: boolean = false): Story[] | null {
   const batchId = getLatestCompletedBatchId();
   if (!batchId) return null;
 
-  // Determine slot allocation (null = wildcard)
+  // Determine slot allocation (null = pick from user's topics)
   let slotTopics: (TopicId | null)[];
   switch (topics.length) {
     case 0:
@@ -29,53 +29,27 @@ export function assembleBrief(topics: TopicId[], energyMode: EnergyMode, include
       break;
   }
 
-  // Count how many stories we need per topic (excluding wildcard)
-  const needPerTopic = new Map<TopicId, number>();
-  for (const t of slotTopics) {
-    if (t !== null) {
-      needPerTopic.set(t, (needPerTopic.get(t) || 0) + 1);
-    }
-  }
-
-  // Fetch stories per topic
+  // Fetch stories per topic — up to 5 each
   const topicStories = new Map<TopicId, Story[]>();
-  for (const [topic, count] of needPerTopic) {
-    const stories = getStoriesForTopic(topic, 'all', batchId, count);
+  for (const topic of topics) {
+    const stories = getStoriesForTopic(topic, 'all', batchId, 5);
     if (stories.length === 0) return null;
     topicStories.set(topic, stories);
   }
 
-  // Assemble in slot order, picking from each topic's pool
+  // Assemble in slot order
   const topicIndex = new Map<TopicId, number>();
   const result: Story[] = [];
   const seenHeadlines = new Set<string>();
-  const usedTopics = new Set<TopicId>();
 
   for (const topic of slotTopics) {
     if (topic !== null) {
-      // Regular slot: pick from this topic's pool
-      const pool = topicStories.get(topic) || [];
-      let idx = topicIndex.get(topic) || 0;
-      while (idx < pool.length && seenHeadlines.has(pool[idx].headline.toLowerCase())) {
-        idx++;
-      }
-      if (idx < pool.length) {
-        result.push(pool[idx]);
-        seenHeadlines.add(pool[idx].headline.toLowerCase());
-        usedTopics.add(topic);
-        topicIndex.set(topic, idx + 1);
-      }
+      const story = pickNextStory(topic, topicStories, topicIndex, seenHeadlines);
+      if (story) result.push(story);
     } else {
-      // WILDCARD slot: pick from any topic NOT already heavily used
-      const wildcardTopic = pickWildcardTopic(topics, usedTopics, batchId);
-      if (wildcardTopic) {
-        const pool = getStoriesForTopic(wildcardTopic, 'all', batchId, 1);
-        const story = pool.find(s => !seenHeadlines.has(s.headline.toLowerCase()));
-        if (story) {
-          result.push(story);
-          seenHeadlines.add(story.headline.toLowerCase());
-        }
-      }
+      // 5th slot: pick from whichever user topic has an unused story
+      const story = pickFromUserTopics(topics, topicStories, topicIndex, seenHeadlines);
+      if (story) result.push(story);
     }
   }
 
@@ -97,26 +71,38 @@ export function assembleBrief(topics: TopicId[], energyMode: EnergyMode, include
   return result;
 }
 
+function pickNextStory(
+  topic: TopicId,
+  topicStories: Map<TopicId, Story[]>,
+  topicIndex: Map<TopicId, number>,
+  seenHeadlines: Set<string>
+): Story | null {
+  const pool = topicStories.get(topic) || [];
+  let idx = topicIndex.get(topic) || 0;
+  while (idx < pool.length && seenHeadlines.has(pool[idx].headline.toLowerCase())) {
+    idx++;
+  }
+  if (idx < pool.length) {
+    seenHeadlines.add(pool[idx].headline.toLowerCase());
+    topicIndex.set(topic, idx + 1);
+    return pool[idx];
+  }
+  return null;
+}
+
 /**
- * Pick a wildcard topic: prefer topics NOT in the user's selection,
- * falling back to the user's least-used topic.
+ * Pick a story from any of the user's selected topics (for the wildcard slot).
+ * Tries each topic in order, returning the first unused story found.
  */
-function pickWildcardTopic(
+function pickFromUserTopics(
   userTopics: TopicId[],
-  usedTopics: Set<TopicId>,
-  batchId: string
-): TopicId | null {
-  // First try: a topic the user didn't select (for diversity)
-  const otherTopics = TOPICS.filter(t => !userTopics.includes(t));
-  // Shuffle for variety
-  const shuffled = otherTopics.sort(() => Math.random() - 0.5);
-  for (const topic of shuffled) {
-    const stories = getStoriesForTopic(topic, 'all', batchId, 1);
-    if (stories.length > 0) return topic;
+  topicStories: Map<TopicId, Story[]>,
+  topicIndex: Map<TopicId, number>,
+  seenHeadlines: Set<string>
+): Story | null {
+  for (const topic of userTopics) {
+    const story = pickNextStory(topic, topicStories, topicIndex, seenHeadlines);
+    if (story) return story;
   }
-  // Fallback: use the user's least-used topic
-  for (const topic of [...userTopics].reverse()) {
-    if (!usedTopics.has(topic)) return topic;
-  }
-  return userTopics[0] ?? null;
+  return null;
 }
