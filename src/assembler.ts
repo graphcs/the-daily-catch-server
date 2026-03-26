@@ -1,5 +1,5 @@
 import { Story, TopicId, EnergyMode, TOPICS } from './types';
-import { getLatestCompletedBatchId, getStoriesForTopic } from './db';
+import { getLatestCompletedBatchId, getStoriesForTopic, getDeepContent } from './db';
 
 /**
  * Assemble a 5-story brief from pre-generated per-topic caches.
@@ -9,7 +9,7 @@ import { getLatestCompletedBatchId, getStoriesForTopic } from './db';
  *   3 topics: T1, T2, T3, T1, WILDCARD
  * WILDCARD = a story from any topic NOT already used.
  */
-export function assembleBrief(topics: TopicId[], energyMode: EnergyMode): Story[] | null {
+export function assembleBrief(topics: TopicId[], energyMode: EnergyMode, includeDeep: boolean = false): Story[] | null {
   const batchId = getLatestCompletedBatchId();
   if (!batchId) return null;
 
@@ -79,7 +79,22 @@ export function assembleBrief(topics: TopicId[], energyMode: EnergyMode): Story[
     }
   }
 
-  return result.length > 0 ? result : null;
+  if (result.length === 0) return null;
+
+  // Merge deep content into stories if requested
+  if (includeDeep) {
+    for (const story of result) {
+      const deep = getDeepContent(story.id);
+      if (deep) {
+        story.timeline = deep.timeline;
+        story.fullCoverage = deep.fullCoverage;
+        story.whatToWatch = deep.whatToWatch;
+        story.linkedTerms = deep.linkedTerms;
+      }
+    }
+  }
+
+  return result;
 }
 
 /**

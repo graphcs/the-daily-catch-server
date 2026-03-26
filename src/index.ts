@@ -7,7 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 import { TopicId, TOPICS, EnergyMode } from './types';
 import { getDb, getStoryById, getDeepContent, getLatestCompletedBatchId } from './db';
 import { assembleBrief } from './assembler';
-import { runGenerationCycle } from './cron';
+import { runGenerationCycle, runDeepContentBatch, runAllDeepContent, DEEP_BATCH_1, DEEP_BATCH_2 } from './cron';
 
 const app = express();
 app.use(cors());
@@ -172,7 +172,8 @@ app.get('/api/brief', (req, res) => {
     return;
   }
 
-  const stories = assembleBrief(topics, energy);
+  const includeDeep = req.query.deep === 'true';
+  const stories = assembleBrief(topics, energy, includeDeep);
   if (!stories) {
     res.status(503).json({
       error: 'No stories cached yet. Trigger a refresh with POST /api/admin/refresh',
@@ -301,13 +302,95 @@ app.post('/api/admin/refresh', async (_req, res) => {
   }
 });
 
-// --- Cron schedule: every 6 hours ---
+/**
+ * @openapi
+ * /api/admin/refresh-deep/batch1:
+ *   post:
+ *     summary: Generate deep content for topics 1-5
+ *     description: "Generates deep content (timeline, fullCoverage, whatToWatch, linkedTerms) for: money, techAI, politics, climate, healthScience"
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Deep content generation completed
+ */
+app.post('/api/admin/refresh-deep/batch1', async (_req, res) => {
+  try {
+    const result = await runDeepContentBatch(DEEP_BATCH_1);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: `Deep batch 1 failed: ${err}` });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/refresh-deep/batch2:
+ *   post:
+ *     summary: Generate deep content for topics 6-10
+ *     description: "Generates deep content (timeline, fullCoverage, whatToWatch, linkedTerms) for: culture, globalAffairs, businessStartups, sports, housingRealEstate"
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Deep content generation completed
+ */
+app.post('/api/admin/refresh-deep/batch2', async (_req, res) => {
+  try {
+    const result = await runDeepContentBatch(DEEP_BATCH_2);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: `Deep batch 2 failed: ${err}` });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/refresh-deep/all:
+ *   post:
+ *     summary: Generate deep content for all stories
+ *     description: Generates deep content for all 30 stories across all topics. Takes 1-2 minutes.
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: All deep content generation completed
+ */
+app.post('/api/admin/refresh-deep/all', async (_req, res) => {
+  try {
+    const result = await runAllDeepContent();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: `Deep content generation failed: ${err}` });
+  }
+});
+
+// --- Staggered cron schedules (every 6 hours) ---
+
+// :00 — Generate stories for all topics
 cron.schedule('0 */6 * * *', async () => {
-  console.log('[cron] Scheduled generation cycle starting...');
+  console.log('[cron] Scheduled story generation starting...');
   try {
     await runGenerationCycle();
   } catch (err) {
-    console.error('[cron] Scheduled cycle failed:', err);
+    console.error('[cron] Story generation failed:', err);
+  }
+});
+
+// :15 — Generate deep content for topics 1-5
+cron.schedule('15 */6 * * *', async () => {
+  console.log('[cron] Scheduled deep batch 1 starting...');
+  try {
+    await runDeepContentBatch(DEEP_BATCH_1);
+  } catch (err) {
+    console.error('[cron] Deep batch 1 failed:', err);
+  }
+});
+
+// :30 — Generate deep content for topics 6-10
+cron.schedule('30 */6 * * *', async () => {
+  console.log('[cron] Scheduled deep batch 2 starting...');
+  try {
+    await runDeepContentBatch(DEEP_BATCH_2);
+  } catch (err) {
+    console.error('[cron] Deep batch 2 failed:', err);
   }
 });
 

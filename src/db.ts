@@ -96,6 +96,14 @@ export function getStoryById(storyId: string): Story | null {
   return row ? JSON.parse(row.story_json) : null;
 }
 
+export function getStoriesForTopics(topics: string[], batchId: string): Story[] {
+  const placeholders = topics.map(() => '?').join(',');
+  const rows = getDb().prepare(
+    `SELECT story_json FROM stories WHERE topic IN (${placeholders}) AND energy_mode = 'all' AND batch_id = ? ORDER BY topic, rank ASC`
+  ).all(...topics, batchId) as { story_json: string }[];
+  return rows.map(r => JSON.parse(r.story_json));
+}
+
 // --- Deep content operations ---
 
 export function saveDeepContent(storyId: string, content: DeepContent): void {
