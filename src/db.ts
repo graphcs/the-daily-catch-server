@@ -86,6 +86,13 @@ export function getLatestCompletedBatchId(): string | null {
   return row?.id ?? null;
 }
 
+export function getLastRefreshTime(): string | null {
+  const row = getDb().prepare(
+    "SELECT completed_at FROM batches WHERE status = 'completed' ORDER BY completed_at DESC LIMIT 1"
+  ).get() as { completed_at: string } | undefined;
+  return row?.completed_at ?? null;
+}
+
 // --- Story operations ---
 
 export function saveStories(stories: Story[], topic: string, energyMode: string, batchId: string): void {

@@ -5,7 +5,7 @@ import cron from 'node-cron';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { TopicId, TOPICS, EnergyMode } from './types';
-import { getDb, getStoryById, getDeepContent, getLatestCompletedBatchId, redeemTestCode, listTestCodes, createTestCode } from './db';
+import { getDb, getStoryById, getDeepContent, getLatestCompletedBatchId, getLastRefreshTime, redeemTestCode, listTestCodes, createTestCode } from './db';
 import { assembleBrief } from './assembler';
 import { runGenerationCycle, runDeepContentBatch, runAllDeepContent, DEEP_BATCH_1, DEEP_BATCH_2 } from './cron';
 
@@ -66,6 +66,50 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     latestBatch: batchId,
     timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * @openapi
+ * /api/schedule:
+ *   get:
+ *     summary: Get cron schedule info
+ *     description: Returns when stories were last refreshed and when the next refresh is scheduled.
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Schedule info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 lastRefresh:
+ *                   type: string
+ *                   nullable: true
+ *                 nextRefresh:
+ *                   type: string
+ */
+app.get('/api/schedule', (_req, res) => {
+  const lastRefresh = getLastRefreshTime();
+
+  // Compute next refresh: cron runs at hours 0, 6, 12, 18 UTC
+  const now = new Date();
+  const currentHour = now.getUTCHours();
+  const cronHours = [0, 6, 12, 18];
+  let nextHour = cronHours.find(h => h > currentHour);
+  const nextDate = new Date(now);
+  if (nextHour !== undefined) {
+    nextDate.setUTCHours(nextHour, 0, 0, 0);
+  } else {
+    // Next day at 00:00 UTC
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+    nextDate.setUTCHours(0, 0, 0, 0);
+  }
+
+  res.json({
+    lastRefresh,
+    nextRefresh: nextDate.toISOString(),
   });
 });
 
